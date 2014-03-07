@@ -37,7 +37,7 @@
             <!-- <log /> -->
 
             <!-- GetAddress benutzt das standard Modul zum parsen des HTMLs
-                nach der Adresse oder in der Datenbank hinterlegtes anderes Modul(IGetAddress)
+                oder in der Datenbank hinterlegtes anderes Modul(IGetAddress) um die Adresse auszulesen
                 Setzt den Header hasChanged für die nächste if Abfrage -->
             <process ref="GetAddress" />
             <choice>
