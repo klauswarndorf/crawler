@@ -1,31 +1,57 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Configures the Camel Context-->
+<!-- Configures the Camel Context -->
 
 <beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xmlns:camel="http://camel.apache.org/schema/spring"
-       xsi:schemaLocation="
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camel="http://camel.apache.org/schema/spring"
+    xsi:schemaLocation="
        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
        http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
 
-  <camel:camelContext xmlns="http://camel.apache.org/schema/spring">
-    <!-- here is a sample which processes the input files
-         (leaving them in place - see the 'noop' flag)
-         then performs content based routing on the message using XPath -->
-    <camel:route>
-      <camel:from uri="file:src/data?noop=true"/>
-      <camel:choice>
-        <camel:when>
-          <camel:xpath>/person/city = 'London'</camel:xpath>
-          <camel:log message="UK message"/>
-          <camel:to uri="file:target/messages/uk"/>
-        </camel:when>
-        <camel:otherwise>
-          <camel:log message="Other message"/>
-          <camel:to uri="file:target/messages/others"/>
-        </camel:otherwise>
-      </camel:choice>
-    </camel:route>
-  </camel:camelContext>
+    <bean id="GetHTML" class="de.kw.crawler.processors.GetHTML" />
+    <bean id="GetAddress" class="de.kw.crawler.processors.GetAddress" />
+    <bean id="SendMail" class="de.kw.crawler.processors.SendMail" />
+
+    <bean id="dataSource"
+        class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver" />
+        <property name="url" value="jdbc:mysql://127.0.0.1:3306/crawler" />
+        <property name="username" value="crawler" />
+        <property name="password" value="blahblah" />
+    </bean>
+
+    <camelContext xmlns="http://camel.apache.org/schema/spring">
+        <route>
+            <!-- timer um das Interval einzustellen -->
+            <from uri="timer://start?period=1m" />
+            <!-- camel-sql syntax um die urls aus der Datenbank zu holen
+                inklusive der letzten gültigen Adresse -->
+            <to uri="sql:select * from urls" />
+            <!-- <log /> -->
+
+            <!-- hier kann man mit throtteling und asynchroner Verarbeitung
+                spielen um die Hardware und Netztwerk Kapazitäten auszunutzen oder zu schonen -->
+
+            <!-- GetHTML macht einen HTTPRequest um den kompletten HTML code
+                im Body des Exchange Objekts abzulegen -->
+            <process ref="GetHTML" />
+            <!-- <log /> -->
+
+            <!-- GetAddress benutzt das standard Modul zum parsen des HTMLs
+                nach der Adresse oder in der Datenbank hinterlegtes anderes Modul(IGetAddress)
+                Setzt den Header hasChanged für die nächste if Abfrage -->
+            <process ref="GetAddress" />
+            <choice>
+                <when>
+                    <simple>"${in.header.hasChanged} == TRUE"</simple>
+                    <!-- <log /> -->
+
+                    <!-- SendMail ... -->
+                    <process ref="SendMail" />
+                    <!-- camel-sql zum Updaten der Datenbank -->
+                    <to uri="sql:INSERT INTO addresses" />
+                </when>
+            </choice>
+        </route>
+    </camelContext>
 
 </beans>
